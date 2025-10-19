@@ -11,10 +11,11 @@ import { comparePassword } from "../utils/compare.js";
 import { zUserPutBody } from "../libs/zodValidators.js";
 import type { Signup } from "../libs/types.js";
 import { v4 as uuidv4 } from "uuid";
+import { create } from "domain";
 const router = Router();
 const prisma = new PrismaClient();
-// POST /api/v2/auth/sigin
-router.post("/sigin", async (req: Request, res: Response) => {
+// POST /api/v2/auth/signin
+router.post("/signin", async (req: Request, res: Response) => {
   try {
     // get username and password from body
     const { username, password } = req.body;
@@ -68,7 +69,59 @@ router.post("/sigin", async (req: Request, res: Response) => {
   }
 });
 // POST /api/v2/auth/signup
-router.post("/signup", async (req: Request, res: Response) => {});
+router.post("/signup", async (req: Request, res: Response) => {
+  try {
+    const body = zUserPutBody.safeParse(req.body);
+    
+    if (!body.success ) {
+      return res.json({
+        success: false,
+        message: "Validation failed",
+        errors: body.error.issues[0]?.message,
+      });
+    }
+
+    const { 
+      firstName, 
+      lastName, 
+      username, 
+      dateOfBirth, 
+      password 
+    } = body.data;
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const newUser = await prisma.user.create ({
+      data: {
+        userId: uuidv4(),
+        firstName,
+        lastName,
+        username,
+        dateOfBirth,
+        password: hashedPassword,
+      }
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Sign up successful",
+      data: {
+        userId: newUser.userId,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        username: newUser.username,
+        dateOfBirth: newUser.dateOfBirth,
+        password: newUser.password, 
+        createAt: newUser.createAt,
+        updateAt: newUser.updateAt
+      }
+    });
+
+  } catch(err){
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 // POST /api/v2/auth/signout
 router.post("/signout", authenticateToken, (req: Request, res: Response) => {
